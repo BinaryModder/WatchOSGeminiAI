@@ -1,178 +1,157 @@
 package com.example.neurochat.presentation
 
-import android.Manifest
-import android.content.Intent
-import android.content.pm.PackageManager
 import android.os.Bundle
-import android.speech.RecognizerIntent
-import android.speech.SpeechRecognizer
-import android.speech.tts.Voice
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.content.ContextCompat
 import androidx.wear.compose.material.*
 
 class MainActivity : ComponentActivity() {
-
-    private lateinit var speechRecognizer: SpeechRecognizer
     override fun onCreate(savedInstanceState: Bundle?) {
-
-
-
-        //installSplashScreen()
-
         super.onCreate(savedInstanceState)
-
-        //Регистрация запроса разрешения
-
-        val requestPermissionLauncher =
-            registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-                if (!granted) {
-                    // TODO: показать предупреждение пользователю
-                }
-            }
-
-        //Отправка и проверка запроса разрешения
-
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
-            != PackageManager.PERMISSION_GRANTED
-        ) {
-            requestPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-        }
-
-        speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this)
-
         setTheme(android.R.style.Theme_DeviceDefault)
-
         setContent {
-            VoiceUserMessage(speechRecognizer)
+            TextInputScreen()
         }
-
-    }
-    override fun onDestroy() {
-        super.onDestroy()
-        speechRecognizer.destroy()
     }
 }
 
-data class Message(val text: String , val isUser: Boolean)
+data class Message(val text: String, val isUser: Boolean)
 
 @Composable
-fun VoiceUserMessage(speechRecognizer: SpeechRecognizer) {
+fun TextInputScreen() {
     var messages by remember { mutableStateOf(listOf<Message>()) }
+    var textState by remember { mutableStateOf(TextFieldValue("")) }
 
-    fun startListening() {
-        var UserResponse = "Привет"
-        messages = messages + Message(UserResponse, true)
-        sendMessageToGemini(messages.last().text) { reply ->
-            messages = messages + Message(reply, false)
+    fun sendMessage() {
+        val text = textState.text.trim()
+        if (text.isNotBlank()) {
+            messages = messages + Message(text, true)
+            textState = TextFieldValue("") // Очищаем поле ввода
+
+            // Отправляем сообщение в нейросеть
+            sendMessageToGemini(text) { reply ->
+                messages = messages + Message(reply, false)
+            }
         }
-        //val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-        //    putExtra(
-//                RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-//                RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
-//            )
-//            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ru-RU") // русский язык
-//        }
-
-//        speechRecognizer.setRecognitionListener(object : android.speech.RecognitionListener {
-//            override fun onReadyForSpeech(params: Bundle?) {}
-//            override fun onBeginningOfSpeech() {}
-//            override fun onRmsChanged(rmsdB: Float) {}
-//            override fun onBufferReceived(buffer: ByteArray?) {}
-//            override fun onEndOfSpeech() {}
-//            override fun onError(error: Int) {
-//                messages = messages + Message("Ошибка распознавания ($error)", false)
-//            }
-//
-//            override fun onResults(results: Bundle?) {
-//                val spokenText =
-//                    results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()
-//                if (spokenText != null) {
-//                    messages = messages + Message(spokenText, true)
-//                    // Здесь можно отправить spokenText в нейросеть
-//                }
-//            }
-//
-//            override fun onPartialResults(partialResults: Bundle?) {}
-//            override fun onEvent(eventType: Int, params: Bundle?) {}
-//        })
-//
-//        speechRecognizer.startListening(intent)
-
     }
 
-    ChatScreen(messages = messages, onMicClick = { startListening() })
+    ChatScreen(
+        messages = messages,
+        textState = textState,
+        onTextChange = { textState = it },
+        onSendClick = { sendMessage() }
+    )
 }
 
 @Composable
-fun ChatScreen(messages: List<Message>, onMicClick: () -> Unit) {
+fun ChatScreen(
+    messages: List<Message>,
+    textState: TextFieldValue,
+    onTextChange: (TextFieldValue) -> Unit,
+    onSendClick: () -> Unit
+) {
     Scaffold(
         timeText = { },
         vignette = { },
         positionIndicator = { }
     ) {
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(Color.Black)
                 .padding(8.dp)
         ) {
-            // Заголовок
-            Text(
-                text = "ChatAI",
-                color = Color.White,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier
-                    .align(Alignment.CenterHorizontally)
-                    .padding(bottom = 8.dp)
-            )
-
-            // Список сообщений
-            LazyColumn(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
+            Column(
+                modifier = Modifier.fillMaxSize()
             ) {
-                items(messages) { msg ->
-                    ChatBubble(msg)
+                // Заголовок
+                Text(
+                    text = "ChatAI",
+                    color = Color.White,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier
+                        .align(Alignment.CenterHorizontally)
+                        .padding(bottom = 8.dp)
+                )
+
+                // Список сообщений
+                LazyColumn(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .padding(bottom = 60.dp), // 👈 оставляем место для поля ввода
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    items(messages) { msg ->
+                        ChatBubble(msg)
+                    }
                 }
             }
 
-            // Кнопка микрофона
-            Box(
+            // 👇 Поле ввода поверх списка сообщений
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 6.dp),
-                contentAlignment = Alignment.Center
+                    .align(Alignment.BottomCenter) // 👈 позиционируем снизу
+                    .padding(bottom = 16.dp), // 👈 отступ от самого низа
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
+                BasicTextField(
+                    value = textState,
+                    onValueChange = onTextChange,
+                    textStyle = TextStyle(
+                        color = Color.White,
+                        fontSize = 14.sp
+                    ),
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(38.dp)
+                        .background(Color(0xFF2F2F2F), RoundedCornerShape(19.dp))
+                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                    singleLine = true,
+                    decorationBox = { innerTextField ->
+                        if (textState.text.isEmpty()) {
+                            Text(
+                                "Введите сообщение...",
+                                color = Color.Gray,
+                                fontSize = 14.sp
+                            )
+                        }
+                        innerTextField()
+                    }
+                )
+
                 Button(
-                    onClick = onMicClick,
-                    shape = CircleShape,
-                    modifier = Modifier.size(56.dp)
+                    onClick = onSendClick,
+                    modifier = Modifier.size(38.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        backgroundColor = Color(0xFF0A84FF)
+                    )
                 ) {
                     Icon(
-                        imageVector = Icons.Filled.Mic,
-                        contentDescription = "Voice input",
-                        tint = Color.White
+                        imageVector = Icons.Filled.Search,
+                        contentDescription = "Отправить",
+                        tint = Color.White,
+                        modifier = Modifier.size(18.dp)
                     )
                 }
             }
@@ -208,9 +187,11 @@ fun ChatBubble(message: Message) {
     }
 }
 
-
-fun sendMessageToGemini(userText: String , onReply: (String) -> Unit) {
+fun sendMessageToGemini(userText: String, onReply: (String) -> Unit) {
+    // Заглушка для отправки сообщения
     GeminiApi.sendMessage(userText){ reply ->
         onReply(reply)
     }
+
+
 }
